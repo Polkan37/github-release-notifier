@@ -1,0 +1,33 @@
+{
+  "name": "github-release-notifier",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Polkan37/github-release-notifier.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Polkan37/github-release-notifier/issues"
+  },
+  "homepage": "https://github.com/Polkan37/github-release-notifier#readme",
+  "description": "",
+  "dependencies": {
+    "@prisma/client": "^7.7.0",
+    "dotenv": "^17.4.1",
+    "fastify": "^5.8.4",
+    "prisma": "^7.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.2"
+  }
+}
