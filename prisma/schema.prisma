@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,6 +6,74 @@ datasource db {
   provider = "postgresql"
 }
 
-model Test {
-  id Int @id @default(autoincrement())
+model Repository {
+  id           Int      @id @default(autoincrement())
+  fullName     String   @unique // "owner/repo"
+  lastSeenTag  String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subscriptions Subscription[]
+  notifications Notification[]
+}
+
+model Subscription {
+  id                Int      @id @default(autoincrement())
+  email             String
+
+  repositoryId      Int
+  repository        Repository @relation(fields: [repositoryId], references: [id])
+
+  status            SubscriptionStatus @default(PENDING)
+
+  confirmToken      String   @unique
+  unsubscribeToken  String   @unique
+
+  confirmedAt       DateTime?
+  unsubscribedAt    DateTime?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  notifications     Notification[]
+
+  @@unique([email, repositoryId])
+}
+
+model Notification {
+  id             Int      @id @default(autoincrement())
+
+  subscriptionId Int
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+
+  repositoryId   Int
+  repository     Repository @relation(fields: [repositoryId], references: [id])
+
+  tag            String
+
+  status         NotificationStatus @default(PENDING)
+
+  error          String?
+
+  attempts       Int      @default(0)   // for retry
+  nextRetryAt    DateTime?
+
+  sentAt         DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([subscriptionId, tag])
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  UNSUBSCRIBED
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
 }
