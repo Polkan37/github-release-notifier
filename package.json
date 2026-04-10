@@ -20,6 +20,7 @@
   "homepage": "https://github.com/Polkan37/github-release-notifier#readme",
   "description": "",
   "dependencies": {
+    "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "dotenv": "^17.4.1",
     "fastify": "^5.8.4",
