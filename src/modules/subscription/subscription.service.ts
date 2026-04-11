@@ -1,8 +1,11 @@
 import { prisma } from '../../core/db/prisma'
 import { GitHubClient } from '../../integrations/github/github.client'
+import { MailClient } from '../../integrations/mail/mail.client'
 import crypto from 'crypto'
+import { confirmEmailTemplate } from '../notification/templates/confirm'
 
 const githubClient = new GitHubClient()
+const mail = new MailClient()
 
 export class SubscriptionService {
     //create subscription
@@ -24,7 +27,7 @@ export class SubscriptionService {
         })
 
         if (!repository) {
-            const latestTag = await githubClient.getLatestRelease(fullName)
+            const latestTag = (await githubClient.getLatestRelease(fullName)).tag;
 
             repository = await prisma.repository.create({
                 data: {
@@ -56,7 +59,7 @@ export class SubscriptionService {
                 return prisma.subscription.update({
                     where: { id: existing.id },
                     data: {
-                        status: 'PENDING',
+                        status: 'ACTIVE',
                         confirmToken: crypto.randomUUID(),
                         unsubscribedAt: null,
                     },
@@ -78,7 +81,17 @@ export class SubscriptionService {
             },
         })
 
-        // 7. TODO: Send email with confirmToken
+        // 7. Send email with confirmToken
+        try {
+            const html = confirmEmailTemplate(confirmToken)
+            await mail.send({
+                to: email,
+                subject: `Confirm subscription to ${repository.fullName}`,
+                html,
+            })
+        } catch (err: any) {
+            console.error('Failed to send confirmation email:', err?.message || err)
+        }
 
         return subscription
     }

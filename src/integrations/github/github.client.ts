@@ -27,22 +27,27 @@ export class GitHubClient {
         return true;
     }
 
-    async getLatestRelease(fullName: string): Promise<string | null> {
-        const releaseRes = await fetch(`${BASE_URL}/repos/${fullName}/releases/latest`, {
+    async getLatestRelease(fullName: string): Promise<{ tag: string | null; headers: Headers }> {
+        const res = await fetch(`${BASE_URL}/repos/${fullName}/releases/latest`, {
             headers: this.headers,
         });
 
-        if (releaseRes.ok) {
-            const data = await releaseRes.json()
-            return data.tag_name
+        if (res.status === 404) return { tag: null, headers: res.headers }
+
+        if (!res.ok) {
+            const text = await res.text()
+            const error: any = new Error(text)
+            error.status = res.status
+            error.headers = res.headers
+            throw error
         }
 
-        const tagsRes = await fetch(`${BASE_URL}/repos/${fullName}/tags`)
+        const data = await res.json()
 
-        if (!tagsRes.ok) return null
+        return {
+            tag: data.tag_name ?? null,
+            headers: res.headers,
+        }
 
-        const tags = await tagsRes.json()
-
-        return tags[0]?.name || null
     }
 }

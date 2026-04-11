@@ -1,17 +1,8 @@
-/*
-  Warnings:
-
-  - You are about to drop the `Test` table. If the table is not empty, all the data it contains will be lost.
-
-*/
 -- CreateEnum
 CREATE TYPE "SubscriptionStatus" AS ENUM ('PENDING', 'ACTIVE', 'UNSUBSCRIBED');
 
 -- CreateEnum
 CREATE TYPE "NotificationStatus" AS ENUM ('PENDING', 'SENT', 'FAILED');
-
--- DropTable
-DROP TABLE "Test";
 
 -- CreateTable
 CREATE TABLE "Repository" (
@@ -55,6 +46,15 @@ CREATE TABLE "Notification" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Notification_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ScannerState" (
+    "id" INTEGER NOT NULL DEFAULT 1,
+    "lastRepoId" INTEGER,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ScannerState_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex

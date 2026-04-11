@@ -66,14 +66,21 @@ model Notification {
   @@unique([subscriptionId, tag])
 }
 
+model ScannerState {
+  id        Int      @id @default(1)
+  lastRepoId Int?
+  updatedAt DateTime @updatedAt
+}
+
 enum SubscriptionStatus {
   PENDING
   ACTIVE
   UNSUBSCRIBED
-}
+  }
 
 enum NotificationStatus {
   PENDING
   SENT
   FAILED
 }
+
