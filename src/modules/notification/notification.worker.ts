@@ -56,11 +56,11 @@ export function startNotifier(): void {
             return
           }
 
-          console.error(`Failed to process notification ${job.id}`, error)
+          console.warn(`Failed to process notification ${job.id}`, error)
         }
       }
     } catch (error) {
-      console.error('Notifier worker failed', error)
+      console.warn('Notifier worker failed', error)
     }
   })
 }

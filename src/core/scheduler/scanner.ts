@@ -93,7 +93,7 @@ export function startScanner() {
               return
             }
 
-            console.error(`Scanning failed. Repo: ${repo.fullName}`)
+            console.warn(`Scanning failed. Repo: ${repo.fullName}`)
             await updateLastScannedRepoId(repo.id)
           }
         })

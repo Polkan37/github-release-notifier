@@ -22,7 +22,7 @@ export class RateLimitError extends Error {
 }
 
 export class NotificationService {
-  private readonly mail = new MailClient()
+  constructor(private mail = new MailClient()) {}
 
   private backoffUntil: number | null = null
   private backoffMs = INITIAL_BACKOFF_MS

@@ -8,6 +8,12 @@ const githubClient = new GitHubClient()
 const mail = new MailClient()
 
 export class SubscriptionService {
+    constructor(
+        private githubClient = new GitHubClient(),
+        private mail = new MailClient()
+    ) { }
+
+
     //create subscription
     async createSubscription(email: string, fullName: string) {
         // 1. repo validation
@@ -16,7 +22,7 @@ export class SubscriptionService {
         }
 
         // 2. Check repo with GitHub
-        const exists = await githubClient.repoExists(fullName)
+        const exists = await this.githubClient.repoExists(fullName)
         if (!exists) {
             throw new Error('Repository not found')
         }
@@ -27,7 +33,7 @@ export class SubscriptionService {
         })
 
         if (!repository) {
-            const latestTag = (await githubClient.getLatestRelease(fullName)).tag;
+            const latestTag = (await this.githubClient.getLatestRelease(fullName)).tag;
 
             repository = await prisma.repository.create({
                 data: {
@@ -83,14 +89,13 @@ export class SubscriptionService {
 
         // 7. Send email with confirmToken
         try {
-            const html = confirmEmailTemplate(confirmToken)
-            await mail.send({
+            await this.mail.send({
                 to: email,
                 subject: `Confirm subscription to ${repository.fullName}`,
-                html,
+                html: confirmEmailTemplate(confirmToken),
             })
         } catch (err: any) {
-            console.error('Failed to send confirmation email:', err?.message || err)
+            console.warn('Failed to send confirmation email:', err?.message || err)
         }
 
         return subscription
