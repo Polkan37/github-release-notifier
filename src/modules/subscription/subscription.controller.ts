@@ -17,7 +17,7 @@ export class SubscriptionController {
     const { email, repo } = request.body
 
     if (!email || !repo || !isValidEmail(email)) {
-      return reply.code(400).send()
+      return reply.code(400).send({ message: 'Unexpected error' })
     }
 
     try {
@@ -28,19 +28,19 @@ export class SubscriptionController {
         const message = e.message as ServiceError
 
         if (message === 'Invalid repository format') {
-          return reply.code(400).send()
+          return reply.code(400).send({ message })
         }
 
         if (message === 'Repository not found') {
-          return reply.code(404).send()
+          return reply.code(404).send({ message})
         }
 
         if (message === 'Already subscribed') {
-          return reply.code(409).send()
+          return reply.code(409).send({ message})
         }
       }
 
-      return reply.code(400).send()
+      return reply.code(400).send({ message: 'Unexpected error' })
     }
   }
 
@@ -51,13 +51,13 @@ export class SubscriptionController {
     const { token } = request.params
 
     if (!token || typeof token !== 'string') {
-      return reply.code(400).send()
+      return reply.code(400).send({ message: 'Unexpected error' })
     }
 
     const found = await service.confirmSubscription(token)
 
     if (!found) {
-      return reply.code(404).send()
+      return reply.code(404).send({ message: 'Subscription not found' })
     }
 
     return reply.code(200).send()
@@ -70,13 +70,13 @@ export class SubscriptionController {
     const { token } = request.params
 
     if (!token || typeof token !== 'string') {
-      return reply.code(400).send()
+      return reply.code(400).send({ message: 'Unexpected error' })
     }
 
     const found = await service.unsubscribe(token)
 
     if (!found) {
-      return reply.code(404).send()
+      return reply.code(404).send({ message: 'Subscription not found' })
     }
 
     return reply.code(200).send()
@@ -89,7 +89,7 @@ export class SubscriptionController {
     const email = request.query.email.trim()
 
     if (!email || !isValidEmail(email)) {
-      return reply.code(400).send()
+      return reply.code(400).send({ message: 'Invalid email format' })
     }
 
     const subs = await service.getSubscriptions(email)

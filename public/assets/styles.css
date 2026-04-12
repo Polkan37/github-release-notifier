@@ -1,0 +1,42 @@
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 480px;
+            margin: 40px auto;
+            padding: 16px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        input,
+        button {
+            padding: 12px;
+            font-size: 16px;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .message {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .success {
+            background: #e8f7e8;
+        }
+
+        .error {
+            background: #fde8e8;
+        }
