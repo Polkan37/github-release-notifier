@@ -16,6 +16,9 @@ jest.mock('../../core/db/prisma', () => ({
       update: jest.fn(),
       findMany: jest.fn(),
     },
+    notification: {
+      update: jest.fn(),
+    },
   },
 }))
 
