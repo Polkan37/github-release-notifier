@@ -12,19 +12,21 @@ jobs:
     services:
       postgres:
         image: postgres:15
-        ports: ['5432:5432']
+        ports:
+          - 5432:5432
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_db
         options: >-
-          --health-cmd="pg_isready"
+          --health-cmd="pg_isready -U postgres"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
 
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db
+      NODE_ENV: test
 
     steps:
       - name: Checkout
@@ -34,24 +36,25 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: 'npm'
 
-      - name: Install deps
-        run: npm install
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Generate Prisma
+      - name: Clean build artifacts
+        run: rm -rf dist
+
+      - name: Generate Prisma client
         run: npx prisma generate
 
       - name: Run migrations
         run: npx prisma migrate deploy
 
-      - name: Run tests
-        run: npm test
-        
+      - name: Run tests (unit only)
+        run: npm test -- --runInBand
+
       - name: Lint
         run: npm run lint
 
       - name: Build
         run: npm run build
-
-      - name: Test
-        run: npm test
