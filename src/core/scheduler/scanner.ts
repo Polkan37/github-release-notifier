@@ -15,12 +15,10 @@ export function startScanner() {
   cron.schedule('* * * * *', async () => {
     const state = await getState()
 
-    let batchSize = MAX_BATCH
-
     const repos = await prisma.repository.findMany({
       where: state.lastRepoId ? { id: { gt: state.lastRepoId } } : {},
       orderBy: { id: 'asc' },
-      take: batchSize,
+      take: MAX_BATCH,
     })
 
     if (repos.length === 0) {
@@ -33,20 +31,12 @@ export function startScanner() {
 
     const limit = pLimit(CONCURRENCY)
 
-    let globalRemaining: number | null = null
-    let globalReset: number | null = null
-
     await Promise.allSettled(
       repos.map((repo) =>
         limit(async () => {
           try {
-            const { tag, headers } =
+            const { tag } =
               await github.getLatestRelease(repo.fullName)
-
-            const { remaining, reset } = parseRateLimit(headers);
-
-            globalRemaining = remaining
-            globalReset = reset
 
             if (tag === repo.lastSeenTag) {
               await updateLastScannedRepoId(repo.id)
