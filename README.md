@@ -37,6 +37,8 @@ Create `.env` file:
 
 ```env
 
+PORT=3000
+
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/releases
 GITHUB_TOKEN=your_github_token
 

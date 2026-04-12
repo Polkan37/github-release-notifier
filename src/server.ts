@@ -1,12 +1,13 @@
 import 'dotenv/config'
+import { runMigrations } from './core/db/runMigrations'
 import { buildApp } from './app'
 
-const app = buildApp()
+async function start() {
+  runMigrations()
 
-app.listen({ port: 3000 }, (err) => {
-  if (err) {
-    console.error(err)
-    process.exit(1)
-  }
-  console.log('Server running on http://localhost:3000')
-})
+  const app = await buildApp()
+
+  await app.listen({ port: Number(process.env.PORT) || 3000 })
+}
+
+start()
