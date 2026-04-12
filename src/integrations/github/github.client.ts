@@ -16,12 +16,18 @@ export class GitHubClient {
 
         if (res.status === 404) return false;
 
-        if (res.status === 429) {
+        const remaining = res.headers.get('x-ratelimit-remaining')
+        if (res.status === 429 || remaining === '0') {
             throw new Error("GitHub rate limit exceeded");
         }
-
+        if (res.status === 403) {
+            throw new Error('GitHub access forbidden or rate limited')
+        }
+        if (res.status >= 500) {
+            throw new Error('GitHub server error')
+        }
         if (!res.ok) {
-            throw new Error(`GitHub error: ${res.status}`);
+            throw new Error(`GitHub error: ${res.status}`)
         }
 
         return true;
@@ -43,7 +49,6 @@ export class GitHubClient {
         }
 
         const data = await res.json()
-        console.log('data', data)
 
         return {
             tag: data.tag_name ?? null,

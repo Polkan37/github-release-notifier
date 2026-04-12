@@ -1,68 +1,106 @@
+import { FastifyReply, FastifyRequest } from 'fastify'
 import { SubscriptionService } from './subscription.service'
+import { SubscribeBody, TokenParams, SubscriptionsQuery, SubscriptionResponse, ServiceError } from './types'
 
 const service = new SubscriptionService()
 
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+// ---- Controller ----
 export class SubscriptionController {
-  async subscribe(request: any, reply: any) {
-    const { email, repository } = request.body
+  async subscribe(
+    request: FastifyRequest<{ Body: SubscribeBody }>,
+    reply: FastifyReply
+  ) {
+    const { email, repo } = request.body
+
+    if (!email || !repo || !isValidEmail(email)) {
+      return reply.code(400).send()
+    }
 
     try {
-      const result = await service.createSubscription(email, repository)
+      await service.createSubscription(email, repo)
+      return reply.code(200).send()
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        const message = e.message as ServiceError
 
-      return reply.code(201).send({
-        message: 'Subscription created. Please confirm your email.',
-        data: result,
-      })
-    } catch (e: any) {
-      if (e.message === 'Invalid repository format') {
-        return reply.code(400).send({ error: e.message })
+        if (message === 'Invalid repository format') {
+          return reply.code(400).send()
+        }
+
+        if (message === 'Repository not found') {
+          return reply.code(404).send()
+        }
+
+        if (message === 'Already subscribed') {
+          return reply.code(409).send()
+        }
       }
 
-      if (e.message === 'Repository not found') {
-        return reply.code(404).send({ error: e.message })
-      }
-
-      if (e.message === 'Already subscribed') {
-        return reply.code(409).send({ error: e.message })
-      }
-
-      return reply.code(500).send({ error: 'Internal error' })
+      return reply.code(400).send()
     }
   }
 
-  async confirm(request: any, reply: any) {
+  async confirm(
+    request: FastifyRequest<{ Params: TokenParams }>,
+    reply: FastifyReply
+  ) {
     const { token } = request.params
 
-    try {
-      await service.confirmSubscription(token)
-
-      return reply.send({ message: 'Subscription confirmed' })
-    } catch {
-      return reply.code(400).send({ error: 'Invalid token' })
+    if (!token || typeof token !== 'string') {
+      return reply.code(400).send()
     }
+
+    const found = await service.confirmSubscription(token)
+
+    if (!found) {
+      return reply.code(404).send()
+    }
+
+    return reply.code(200).send()
   }
 
-  async unsubscribe(request: any, reply: any) {
+  async unsubscribe(
+    request: FastifyRequest<{ Params: TokenParams }>,
+    reply: FastifyReply
+  ) {
     const { token } = request.params
 
-    try {
-      await service.unsubscribe(token)
-
-      return reply.send({ message: 'Unsubscribed successfully' })
-    } catch {
-      return reply.code(400).send({ error: 'Invalid token' })
+    if (!token || typeof token !== 'string') {
+      return reply.code(400).send()
     }
+
+    const found = await service.unsubscribe(token)
+
+    if (!found) {
+      return reply.code(404).send()
+    }
+
+    return reply.code(200).send()
   }
 
-  async getSubscriptions(request: any, reply: any) {
-    const { email } = request.query
+  async getSubscriptions(
+    request: FastifyRequest<{ Querystring: SubscriptionsQuery }>,
+    reply: FastifyReply
+  ) {
+    const email = request.query.email.trim()
 
-    if (!email) {
-      return reply.code(400).send({ error: 'Email is required' })
+    if (!email || !isValidEmail(email)) {
+      return reply.code(400).send()
     }
 
     const subs = await service.getSubscriptions(email)
 
-    return reply.send({ data: subs })
+    const response: SubscriptionResponse[] = subs.map((s) => ({
+      email: s.email,
+      repo: s.repo,
+      confirmed: s.confirmed,
+      last_seen_tag: s.lastSeenTag,
+    }))
+
+    return reply.code(200).send(response)
   }
 }

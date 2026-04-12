@@ -3,9 +3,7 @@ import { GitHubClient } from '../../integrations/github/github.client'
 import { MailClient } from '../../integrations/mail/mail.client'
 import crypto from 'crypto'
 import { confirmEmailTemplate } from '../notification/templates/confirm'
-
-const githubClient = new GitHubClient()
-const mail = new MailClient()
+import { SubscriptionDTO } from './types'
 
 export class SubscriptionService {
     constructor(
@@ -15,29 +13,29 @@ export class SubscriptionService {
 
 
     //create subscription
-    async createSubscription(email: string, fullName: string) {
+    async createSubscription(email: string, repo: string): Promise<void> {
         // 1. repo validation
-        if (!/^[^/]+\/[^/]+$/.test(fullName)) {
+        if (!/^[^/]+\/[^/]+$/.test(repo)) {
             throw new Error('Invalid repository format')
         }
 
         // 2. Check repo with GitHub
-        const exists = await this.githubClient.repoExists(fullName)
+        const exists = await this.githubClient.repoExists(repo)
         if (!exists) {
             throw new Error('Repository not found')
         }
 
         // 3. Find or create repo in db
         let repository = await prisma.repository.findUnique({
-            where: { fullName },
+            where: { fullName: repo },
         })
 
         if (!repository) {
-            const latestTag = (await this.githubClient.getLatestRelease(fullName)).tag;
+            const latestTag = (await this.githubClient.getLatestRelease(repo)).tag;
 
             repository = await prisma.repository.create({
                 data: {
-                    fullName,
+                    fullName: repo,
                     lastSeenTag: latestTag,
                 },
             })
@@ -59,10 +57,10 @@ export class SubscriptionService {
             }
 
             if (existing.status === 'PENDING') {
-                return existing
+                return
             }
             if (existing.status === 'UNSUBSCRIBED') {
-                return prisma.subscription.update({
+                await prisma.subscription.update({
                     where: { id: existing.id },
                     data: {
                         status: 'ACTIVE',
@@ -70,6 +68,7 @@ export class SubscriptionService {
                         unsubscribedAt: null,
                     },
                 })
+                return
             }
         }
 
@@ -78,7 +77,7 @@ export class SubscriptionService {
         const unsubscribeToken = crypto.randomUUID();
 
         // 6. Create subscription
-        const subscription = await prisma.subscription.create({
+        await prisma.subscription.create({
             data: {
                 email,
                 repositoryId: repository.id,
@@ -98,7 +97,7 @@ export class SubscriptionService {
             console.warn('Failed to send confirmation email:', err?.message || err)
         }
 
-        return subscription
+        return
     }
 
     // confirm subscription
@@ -108,20 +107,22 @@ export class SubscriptionService {
         })
 
         if (!subscription) {
-            throw new Error('Invalid token')
+            return false
         }
 
         if (subscription.status === 'ACTIVE') {
-            return subscription
+            return true
         }
 
-        return prisma.subscription.update({
+        await prisma.subscription.update({
             where: { id: subscription.id },
             data: {
                 status: 'ACTIVE',
                 confirmedAt: new Date(),
             },
         })
+
+        return true
     }
 
     // unsubscribe
@@ -131,25 +132,27 @@ export class SubscriptionService {
         })
 
         if (!subscription) {
-            throw new Error('Invalid token')
+            return false
         }
 
         if (subscription.status === 'UNSUBSCRIBED') {
-            return subscription
+            return true
         }
 
-        return prisma.subscription.update({
+        await prisma.subscription.update({
             where: { id: subscription.id },
             data: {
                 status: 'UNSUBSCRIBED',
                 unsubscribedAt: new Date(),
             },
         })
+
+        return true
     }
 
     // get subscriptions by email
-    async getSubscriptions(email: string) {
-        return prisma.subscription.findMany({
+    async getSubscriptions(email: string): Promise<SubscriptionDTO[]> {
+        const subs = await prisma.subscription.findMany({
             where: {
                 email,
                 status: 'ACTIVE',
@@ -158,5 +161,12 @@ export class SubscriptionService {
                 repository: true,
             },
         })
+
+        return subs.map((s) => ({
+            email: s.email,
+            repo: s.repository.fullName,
+            confirmed: s.status === 'ACTIVE',
+            lastSeenTag: s.repository.lastSeenTag,
+        }))
     }
 }
