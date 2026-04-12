@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { GitHubClient } from '../../integrations/github/github.client'
 
 describe('GitHubClient (integration)', () => {

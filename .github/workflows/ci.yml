@@ -36,12 +36,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Clean build artifacts
+      - name: Clean dist
         run: rm -rf dist
 
       - name: Generate Prisma client
@@ -50,8 +50,13 @@ jobs:
       - name: Run migrations
         run: npx prisma migrate deploy
 
-      - name: Run tests (unit only)
+      - name: Run unit tests
         run: npm test -- --runInBand
+
+      - name: Run integration tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_API_TOKEN }}
+        run: npm run test:int -- --runInBand
 
       - name: Lint
         run: npm run lint

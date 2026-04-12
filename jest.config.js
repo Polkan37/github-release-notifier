@@ -6,8 +6,7 @@ module.exports = {
 
   testPathIgnorePatterns: [
     '/node_modules/',
-    '/dist/',
-    '\\.int\\.spec\\.ts'
+    '/dist/'
   ],
 
   setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
