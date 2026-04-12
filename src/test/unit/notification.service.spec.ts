@@ -23,7 +23,21 @@ jest.mock('../../integrations/mail/mail.client', () => {
 
 // ---------------- HELPERS ----------------
 
-const createJob = (overrides: any = {}) => ({
+type Job = {
+    id: number
+    tag: string
+    attempts: number
+    subscription: {
+        email: string
+        status: SubscriptionStatus
+        unsubscribeToken: string
+    }
+    repository: {
+        fullName: string
+    }
+}
+
+const createJob = (overrides: Partial<Job> = {}): Job => ({
     id: 1,
     tag: 'v1.0.0',
     attempts: 0,
@@ -41,154 +55,142 @@ const createJob = (overrides: any = {}) => ({
 // ---------------- TESTS ----------------
 
 describe('NotificationService', () => {
-    let service: NotificationService
-    let mailMock: jest.Mocked<MailClient>
+  let service: NotificationService
+  let mailMock: jest.Mocked<MailClient>
 
-    beforeEach(() => {
-        service = new NotificationService()
+  beforeEach(() => {
+    service = new NotificationService()
+    mailMock = (MailClient as jest.Mock).mock.results[0].value
+    jest.clearAllMocks()
+  })
 
-        mailMock = (MailClient as jest.Mock).mock.results[0].value
-
-        jest.clearAllMocks()
+  it('should mark failed if subscription inactive', async () => {
+    const job = createJob({
+      subscription: {
+        email: 'test@mail.com',
+        status: SubscriptionStatus.UNSUBSCRIBED,
+        unsubscribeToken: 'token',
+      },
     })
 
-    // -------- inactive subscription --------
+    await service.processNotification(job as Parameters<NotificationService['processNotification']>[0])
 
-    it('should mark failed if subscription inactive', async () => {
-        const job = createJob({
-            subscription: { status: SubscriptionStatus.UNSUBSCRIBED },
-        })
+    expect(prisma.notification.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: {
+        status: NotificationStatus.FAILED,
+        error: 'Inactive subscription',
+      },
+    })
+  })
 
-        await service.processNotification(job as any)
+  it('should send email and mark SENT', async () => {
+    mailMock.send.mockResolvedValue(undefined)
 
-        expect(prisma.notification.update).toHaveBeenCalledWith({
-            where: { id: 1 },
-            data: {
-                status: NotificationStatus.FAILED,
-                error: 'Inactive subscription',
-            },
-        })
+    const job = createJob()
+
+    await service.processNotification(job as Parameters<NotificationService['processNotification']>[0])
+
+    expect(mailMock.send).toHaveBeenCalled()
+
+    expect(prisma.notification.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: {
+        status: NotificationStatus.SENT,
+        sentAt: expect.any(Date),
+        error: null,
+      },
+    })
+  })
+
+  it('should handle rate limit and set backoff', async () => {
+    mailMock.send.mockRejectedValue({
+      responseCode: 454,
     })
 
-    // -------- success --------
+    const job = createJob()
 
-    it('should send email and mark SENT', async () => {
-        mailMock.send.mockResolvedValue(undefined)
+    await expect(service.processNotification(job as Parameters<NotificationService['processNotification']>[0])).rejects.toThrow(RateLimitError)
 
-        const job = createJob()
-
-        await service.processNotification(job as any)
-
-        expect(mailMock.send).toHaveBeenCalled()
-
-        expect(prisma.notification.update).toHaveBeenCalledWith({
-            where: { id: 1 },
-            data: {
-                status: NotificationStatus.SENT,
-                sentAt: expect.any(Date),
-                error: null,
-            },
-        })
+    expect(prisma.notification.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: {
+        status: NotificationStatus.PENDING,
+        error: 'RATE_LIMIT',
+      },
     })
 
-    // -------- rate limit --------
+    expect(service.getBackoffUntil()).not.toBeNull()
+  })
 
-    it('should handle rate limit and set backoff', async () => {
-        mailMock.send.mockRejectedValue({
-            responseCode: 454,
-        })
+  it('should retry if attempts < MAX_ATTEMPTS', async () => {
+    mailMock.send.mockRejectedValue(new Error('fail'))
 
-        const job = createJob()
+    const job = createJob({ attempts: 1 })
 
-        await expect(service.processNotification(job as any))
-            .rejects.toThrow(RateLimitError)
+    await service.processNotification(job as Parameters<NotificationService['processNotification']>[0])
 
-        expect(prisma.notification.update).toHaveBeenCalledWith({
-            where: { id: 1 },
-            data: {
-                status: NotificationStatus.PENDING,
-                error: 'RATE_LIMIT',
-            },
-        })
-
-        expect(service.getBackoffUntil()).not.toBeNull()
+    expect(prisma.notification.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: {
+        status: NotificationStatus.PENDING,
+        attempts: 2,
+        error: 'fail',
+      },
     })
+  })
 
-    // -------- retry logic --------
+  it('should fail if attempts >= MAX_ATTEMPTS', async () => {
+    mailMock.send.mockRejectedValue(new Error('fail'))
 
-    it('should retry if attempts < MAX_ATTEMPTS', async () => {
-        mailMock.send.mockRejectedValue(new Error('fail'))
+    const job = createJob({ attempts: 2 })
 
-        const job = createJob({ attempts: 1 })
+    await service.processNotification(job as Parameters<NotificationService['processNotification']>[0])
 
-        await service.processNotification(job as any)
-
-        expect(prisma.notification.update).toHaveBeenCalledWith({
-            where: { id: 1 },
-            data: {
-                status: NotificationStatus.PENDING,
-                attempts: 2,
-                error: 'fail',
-            },
-        })
+    expect(prisma.notification.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: {
+        status: NotificationStatus.FAILED,
+        attempts: 3,
+        error: 'fail',
+      },
     })
+  })
 
-    it('should fail if attempts >= MAX_ATTEMPTS', async () => {
-        mailMock.send.mockRejectedValue(new Error('fail'))
+  it('should skip run during backoff', () => {
+    service.registerRateLimit(1000)
 
-        const job = createJob({ attempts: 2 })
+    expect(service.shouldSkipRun(1001)).toBe(true)
+    expect(service.shouldSkipRun(999999999)).toBe(false)
+  })
 
-        await service.processNotification(job as any)
+  it('should reset backoff', () => {
+    service.registerRateLimit()
+    service.resetBackoff()
 
-        expect(prisma.notification.update).toHaveBeenCalledWith({
-            where: { id: 1 },
-            data: {
-                status: NotificationStatus.FAILED,
-                attempts: 3,
-                error: 'fail',
-            },
-        })
+    expect(service.getBackoffUntil()).toBeNull()
+  })
+
+  it('should detect rate limit by message', async () => {
+    mailMock.send.mockRejectedValue(new Error('Too many requests'))
+
+    const job = createJob()
+
+    await expect(service.processNotification(job as Parameters<NotificationService['processNotification']>[0])).rejects.toThrow(RateLimitError)
+  })
+
+  it('should fallback to unknown error message', async () => {
+    mailMock.send.mockRejectedValue({})
+
+    const job = createJob()
+
+    await service.processNotification(job as Parameters<NotificationService['processNotification']>[0])
+
+    expect(prisma.notification.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: expect.objectContaining({
+        error: 'Unknown error',
+      }),
     })
-
-    // -------- backoff logic --------
-
-    it('should skip run during backoff', () => {
-        service.registerRateLimit(1000)
-
-        expect(service.shouldSkipRun(1001)).toBe(true)
-        expect(service.shouldSkipRun(999999999)).toBe(false)
-    })
-
-    it('should reset backoff', () => {
-        service.registerRateLimit()
-        service.resetBackoff()
-
-        expect(service.getBackoffUntil()).toBeNull()
-    })
-
-    // -------- error parsing --------
-
-    it('should detect rate limit by message', async () => {
-        mailMock.send.mockRejectedValue(new Error('Too many requests'))
-
-        const job = createJob()
-
-        await expect(service.processNotification(job as any))
-            .rejects.toThrow(RateLimitError)
-    })
-
-    it('should fallback to unknown error message', async () => {
-        mailMock.send.mockRejectedValue({})
-
-        const job = createJob()
-
-        await service.processNotification(job as any)
-
-        expect(prisma.notification.update).toHaveBeenCalledWith({
-            where: { id: 1 },
-            data: expect.objectContaining({
-                error: 'Unknown error',
-            }),
-        })
-    })
+  })
 })

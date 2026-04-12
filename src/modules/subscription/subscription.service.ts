@@ -93,8 +93,10 @@ export class SubscriptionService {
                 subject: `Confirm subscription to ${repository.fullName}`,
                 html: confirmEmailTemplate(confirmToken),
             })
-        } catch (err: any) {
-            console.warn('Failed to send confirmation email:', err?.message || err)
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err)
+
+            console.warn('Failed to send confirmation email:', message)
         }
 
         return

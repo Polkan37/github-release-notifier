@@ -1,4 +1,6 @@
 import { SubscriptionService } from '../../modules/subscription/subscription.service'
+import { GitHubClient } from '../../integrations/github/github.client'
+import { MailClient } from '../../integrations/mail/mail.client'
 import { prisma } from '../../core/db/prisma'
 import crypto from 'crypto'
 
@@ -22,22 +24,16 @@ jest.spyOn(crypto, 'randomUUID').mockReturnValue(
 )
 
 describe('SubscriptionService', () => {
-  let githubMock: any
-  let mailMock: any
+  let githubMock: GitHubClient
+  let mailMock: MailClient
   let service: SubscriptionService
 
   beforeEach(() => {
-    jest.spyOn(console, 'error').mockImplementation(() => {})
-    jest.spyOn(console, 'warn').mockImplementation(() => {})
+    jest.spyOn(console, 'error').mockImplementation(() => { })
+    jest.spyOn(console, 'warn').mockImplementation(() => { })
 
-    githubMock = {
-      repoExists: jest.fn(),
-      getLatestRelease: jest.fn(),
-    }
-
-    mailMock = {
-      send: jest.fn(),
-    }
+    githubMock = new GitHubClient()
+    mailMock = new MailClient()
 
     service = new SubscriptionService(githubMock, mailMock)
     jest.clearAllMocks()
@@ -52,7 +48,7 @@ describe('SubscriptionService', () => {
   })
 
   it('repo not found', async () => {
-    githubMock.repoExists.mockResolvedValue(false)
+    jest.spyOn(githubMock, 'repoExists').mockResolvedValue(false)
 
     await expect(
       service.createSubscription('aaaa@mail.com', 'golang/go')
@@ -60,36 +56,38 @@ describe('SubscriptionService', () => {
   })
 
   it('create new repo + subscription', async () => {
-    githubMock.repoExists.mockResolvedValue(true)
-    githubMock.getLatestRelease.mockResolvedValue({
+    jest.spyOn(githubMock, 'repoExists').mockResolvedValue(true)
+    jest.spyOn(githubMock, 'getLatestRelease').mockResolvedValue({
       tag: 'v1',
       headers: {} as Headers,
     })
 
-    ;(prisma.repository.findUnique as jest.Mock).mockResolvedValue(null)
-    ;(prisma.repository.create as jest.Mock).mockResolvedValue({
-      id: 1,
-      fullName: 'golang/go',
-      lastSeenTag: 'v1',
-    })
+    const sendSpy = jest.spyOn(mailMock, 'send').mockResolvedValue(undefined)
 
-    ;(prisma.subscription.findUnique as jest.Mock).mockResolvedValue(null)
-    ;(prisma.subscription.create as jest.Mock).mockResolvedValue({ id: 1 })
+      ; (prisma.repository.findUnique as jest.Mock).mockResolvedValue(null)
+      ; (prisma.repository.create as jest.Mock).mockResolvedValue({
+        id: 1,
+        fullName: 'golang/go',
+        lastSeenTag: 'v1',
+      })
+
+      ; (prisma.subscription.findUnique as jest.Mock).mockResolvedValue(null)
+      ; (prisma.subscription.create as jest.Mock).mockResolvedValue({ id: 1 })
 
     await service.createSubscription('aaaa@mail.com', 'golang/go')
 
     expect(prisma.repository.create).toHaveBeenCalled()
     expect(prisma.subscription.create).toHaveBeenCalled()
-    expect(mailMock.send).toHaveBeenCalled()
+    expect(sendSpy).toHaveBeenCalled()
   })
 
   it('already ACTIVE', async () => {
-    githubMock.repoExists.mockResolvedValue(true)
+    jest.spyOn(githubMock, 'repoExists').mockResolvedValue(true)
 
-    ;(prisma.repository.findUnique as jest.Mock).mockResolvedValue({ id: 1 })
-    ;(prisma.subscription.findUnique as jest.Mock).mockResolvedValue({
-      status: 'ACTIVE',
-    })
+      ; (prisma.repository.findUnique as jest.Mock).mockResolvedValue({ id: 1 })
+      ; (prisma.subscription.findUnique as jest.Mock).mockResolvedValue({
+        status: 'ACTIVE',
+      })
 
     await expect(
       service.createSubscription('aaaa@mail.com', 'golang/go')
@@ -97,13 +95,13 @@ describe('SubscriptionService', () => {
   })
 
   it('PENDING does nothing', async () => {
-    githubMock.repoExists.mockResolvedValue(true)
+    jest.spyOn(githubMock, 'repoExists').mockResolvedValue(true)
 
-    ;(prisma.repository.findUnique as jest.Mock).mockResolvedValue({ id: 1 })
-    ;(prisma.subscription.findUnique as jest.Mock).mockResolvedValue({
-      id: 1,
-      status: 'PENDING',
-    })
+      ; (prisma.repository.findUnique as jest.Mock).mockResolvedValue({ id: 1 })
+      ; (prisma.subscription.findUnique as jest.Mock).mockResolvedValue({
+        id: 1,
+        status: 'PENDING',
+      })
 
     await service.createSubscription('aaaa@mail.com', 'golang/go')
 
@@ -111,18 +109,18 @@ describe('SubscriptionService', () => {
   })
 
   it('UNSUBSCRIBED reactivates', async () => {
-    githubMock.repoExists.mockResolvedValue(true)
+    jest.spyOn(githubMock, 'repoExists').mockResolvedValue(true)
 
-    ;(prisma.repository.findUnique as jest.Mock).mockResolvedValue({ id: 1 })
-    ;(prisma.subscription.findUnique as jest.Mock).mockResolvedValue({
-      id: 1,
-      status: 'UNSUBSCRIBED',
-    })
+      ; (prisma.repository.findUnique as jest.Mock).mockResolvedValue({ id: 1 })
+      ; (prisma.subscription.findUnique as jest.Mock).mockResolvedValue({
+        id: 1,
+        status: 'UNSUBSCRIBED',
+      })
 
-    ;(prisma.subscription.update as jest.Mock).mockResolvedValue({
-      id: 1,
-      status: 'ACTIVE',
-    })
+      ; (prisma.subscription.update as jest.Mock).mockResolvedValue({
+        id: 1,
+        status: 'ACTIVE',
+      })
 
     await service.createSubscription('aaaa@mail.com', 'golang/go')
 
@@ -135,22 +133,22 @@ describe('SubscriptionService', () => {
   })
 
   it('email failure should not break flow', async () => {
-    githubMock.repoExists.mockResolvedValue(true)
-    githubMock.getLatestRelease.mockResolvedValue({
+    jest.spyOn(githubMock, 'repoExists').mockResolvedValue(true)
+    jest.spyOn(githubMock, 'getLatestRelease').mockResolvedValue({
       tag: 'v1',
       headers: {} as Headers,
     })
 
-    mailMock.send.mockRejectedValue(new Error('fail'))
+    jest.spyOn(mailMock, 'send').mockRejectedValue(new Error('fail'))
 
-    ;(prisma.repository.findUnique as jest.Mock).mockResolvedValue({
-      id: 1,
-      fullName: 'golang/go',
-      lastSeenTag: 'v1',
-    })
+      ; (prisma.repository.findUnique as jest.Mock).mockResolvedValue({
+        id: 1,
+        fullName: 'golang/go',
+        lastSeenTag: 'v1',
+      })
 
-    ;(prisma.subscription.findUnique as jest.Mock).mockResolvedValue(null)
-    ;(prisma.subscription.create as jest.Mock).mockResolvedValue({ id: 1 })
+      ; (prisma.subscription.findUnique as jest.Mock).mockResolvedValue(null)
+      ; (prisma.subscription.create as jest.Mock).mockResolvedValue({ id: 1 })
 
     await service.createSubscription('aaaa@mail.com', 'golang/go')
 
@@ -160,15 +158,15 @@ describe('SubscriptionService', () => {
   // ---------------- CONFIRM ----------------
 
   it('confirm success', async () => {
-    ;(prisma.subscription.findUnique as jest.Mock).mockResolvedValue({
+    ; (prisma.subscription.findUnique as jest.Mock).mockResolvedValue({
       id: 1,
       status: 'PENDING',
     })
 
-    ;(prisma.subscription.update as jest.Mock).mockResolvedValue({
-      id: 1,
-      status: 'ACTIVE',
-    })
+      ; (prisma.subscription.update as jest.Mock).mockResolvedValue({
+        id: 1,
+        status: 'ACTIVE',
+      })
 
     const res = await service.confirmSubscription('token')
 
@@ -183,7 +181,7 @@ describe('SubscriptionService', () => {
   })
 
   it('confirm invalid token', async () => {
-    ;(prisma.subscription.findUnique as jest.Mock).mockResolvedValue(null)
+    ; (prisma.subscription.findUnique as jest.Mock).mockResolvedValue(null)
 
     const res = await service.confirmSubscription('bad')
 
@@ -193,15 +191,15 @@ describe('SubscriptionService', () => {
   // ---------------- UNSUB ----------------
 
   it('unsubscribe success', async () => {
-    ;(prisma.subscription.findUnique as jest.Mock).mockResolvedValue({
+    ; (prisma.subscription.findUnique as jest.Mock).mockResolvedValue({
       id: 1,
       status: 'ACTIVE',
     })
 
-    ;(prisma.subscription.update as jest.Mock).mockResolvedValue({
-      id: 1,
-      status: 'UNSUBSCRIBED',
-    })
+      ; (prisma.subscription.update as jest.Mock).mockResolvedValue({
+        id: 1,
+        status: 'UNSUBSCRIBED',
+      })
 
     const res = await service.unsubscribe('token')
 
@@ -216,7 +214,7 @@ describe('SubscriptionService', () => {
   })
 
   it('unsubscribe not found', async () => {
-    ;(prisma.subscription.findUnique as jest.Mock).mockResolvedValue(null)
+    ; (prisma.subscription.findUnique as jest.Mock).mockResolvedValue(null)
 
     const res = await service.unsubscribe('bad')
 
@@ -226,7 +224,7 @@ describe('SubscriptionService', () => {
   // ---------------- GET ----------------
 
   it('get subscriptions', async () => {
-    ;(prisma.subscription.findMany as jest.Mock).mockResolvedValue([
+    ; (prisma.subscription.findMany as jest.Mock).mockResolvedValue([
       {
         email: 'aaaa@mail.com',
         status: 'ACTIVE',

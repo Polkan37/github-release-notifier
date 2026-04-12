@@ -69,10 +69,11 @@ export function startScanner() {
             })
 
             await updateLastScannedRepoId(repo.id)
-          } catch (e: any) {
-            if (e.status === 403 || e.status === 429) {
-              const { reset } = parseRateLimit(e.headers)
-              
+          } catch (e) {
+            const err = e as { status: number; headers: Headers }
+            if (err.status === 403 || err.status === 429) {
+              const { reset } = parseRateLimit(err.headers)
+
               if (reset !== null) {
                 const sleepMs = getSleepMs(reset)
                 console.log(`Github rate limit. Sleep ${sleepMs}ms`)

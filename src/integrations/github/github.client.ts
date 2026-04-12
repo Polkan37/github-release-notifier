@@ -37,12 +37,17 @@ export class GitHubClient {
         const res = await fetch(`${BASE_URL}/repos/${fullName}/releases/latest`, {
             headers: this.headers,
         });
+        type GitHubError = Error & {
+            status?: number
+            headers?: Headers
+        }
 
         if (res.status === 404) return { tag: null, headers: res.headers }
 
         if (!res.ok) {
             const text = await res.text()
-            const error: any = new Error(text)
+            const error = new Error(text) as GitHubError
+            
             error.status = res.status
             error.headers = res.headers
             throw error

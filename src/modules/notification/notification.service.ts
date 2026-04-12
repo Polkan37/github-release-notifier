@@ -22,7 +22,7 @@ export class RateLimitError extends Error {
 }
 
 export class NotificationService {
-  constructor(private mail = new MailClient()) {}
+  constructor(private mail = new MailClient()) { }
 
   private backoffUntil: number | null = null
   private backoffMs = INITIAL_BACKOFF_MS
@@ -72,7 +72,7 @@ export class NotificationService {
           error: null,
         },
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (this.isRateLimitError(error)) {
         await prisma.notification.update({
           where: { id: job.id },
@@ -117,14 +117,26 @@ export class NotificationService {
     })
   }
 
-  private isRateLimitError(error: any): boolean {
+  private isRateLimitError(error: unknown): boolean {
+    if (typeof error !== 'object' || error === null) return false
+
+    const err = error as {
+      responseCode?: number
+      code?: string
+      message?: string
+      response?: string
+    }
+
+    const message = err.message?.toLowerCase?.() || ''
+    const response = err.response?.toLowerCase?.() || ''
+
     return (
-      error?.responseCode === 454 ||
-      error?.responseCode === 421 ||
-      error?.code === 'EENVELOPE' ||
-      error?.message?.toLowerCase?.().includes('rate limit') ||
-      error?.message?.toLowerCase?.().includes('too many') ||
-      error?.response?.toLowerCase?.().includes('limit')
+      err.responseCode === 454 ||
+      err.responseCode === 421 ||
+      err.code === 'EENVELOPE' ||
+      message.includes('rate limit') ||
+      message.includes('too many') ||
+      response.includes('limit')
     )
   }
 
