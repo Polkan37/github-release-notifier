@@ -1,10 +1,11 @@
 import cron from 'node-cron'
-import pLimit from 'p-limit'
 import { prisma } from '../db/prisma'
 import { GitHubClient } from '../../integrations/github/github.client'
 import { getState } from '../../helpers/getState'
 import { updateLastScannedRepoId } from '../../helpers/updateLastScannedRepoId'
 import { parseRateLimit, getSleepMs, sleep } from '../../helpers/rateLimit'
+
+const pLimit = require('p-limit').default;
 
 const github = new GitHubClient()
 

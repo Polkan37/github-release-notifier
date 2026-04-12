@@ -1,15 +1,31 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "CommonJS",
-    "moduleResolution": "node",
-    "strict": true,
-    "outDir": "dist",
+    "target": "ES2022",
+    /* Runtime */
+    "module": "node16",
+    "moduleResolution": "node16",
+
+    /* Paths */
     "rootDir": "src",
+    "outDir": "dist",
+
+    /* Strict */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    /* Interop */
     "esModuleInterop": true,
+
+    /* DX */
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+
+    /* Types */
     "types": ["node", "jest"],
-    "skipLibCheck": true
+
+    /* Debug */
+    "sourceMap": true
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src"]
 }

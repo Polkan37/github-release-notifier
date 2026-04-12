@@ -1,8 +1,9 @@
 import cron from 'node-cron'
-import pLimit from 'p-limit'
 import { Prisma, NotificationStatus } from '@prisma/client'
 import { prisma } from '../../core/db/prisma'
 import { NotificationService, RateLimitError } from './notification.service'
+
+const pLimit = require('p-limit').default;
 
 const BATCH_SIZE = 50
 const CONCURRENCY = 3

@@ -5,10 +5,11 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/server.ts",
     "build": "tsc",
-    "start": "node dist/src/server.js",
+    "start": "node dist/server.js",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "test": "jest",
+    "test": "jest --testPathIgnorePatterns=\\.int\\.spec\\.ts",
+    "test:int": "jest --testMatch=**/*.int.spec.ts",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tsconfig/node22": "^22.0.5",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.6.0",
     "@types/nodemailer": "^8.0.0",
